@@ -166,3 +166,8 @@ Costo promedio por unidad fabricando 100: **33.47 USD**
 
 > Fuente: archivo `Presupuesto_Piscitec_V3.xlsx`
 
+---
+
+## 📁 Estructura del Proyecto
+
+El código fuente del sistema se encuentra organizado en una única carpeta llamada `source/`, que contiene todos los archivos `.c` y `.h` correspondientes a los distintos módulos funcionales del sistema.
