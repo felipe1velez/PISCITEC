@@ -1,6 +1,23 @@
 /**
  * @file main.c
- * @brief Archivo principal del proyecto Pecera Pro (ambos proyectos).
+ * @brief Archivo principal del sistema Piscitec (Pecera Pro).
+ *
+ * Este archivo integra todos los módulos del sistema embebido que monitorea y controla
+ * una pecera doméstica. Se encarga de inicializar periféricos, configurar temporizadores,
+ * manejar interrupciones y actualizar una pantalla OLED con datos como temperatura, luz,
+ * distancia, nivel de comida y vibraciones detectadas.
+ *
+ * Funcionalidades principales:
+ * - Control de temperatura con histéresis.
+ * - Control de luz mediante lectura de LDR.
+ * - Activación del servo dispensador de comida.
+ * - Medición de distancia por ultrasonido.
+ * - Detección de vibraciones y activación de buzzer.
+ * - Visualización en pantalla OLED.
+ *
+ * @author
+ * Duván Felipe Vélez Restrepo
+ * @date 2025
  */
 
 #include <stdio.h>
@@ -8,23 +25,22 @@
 #include "hardware/i2c.h"
 #include "lib/ssd1306.h"
 
-// Headers propios
 #include "main.h"
 #include "food.h"
 #include "temperature.h"
 #include "lights.h"
 
-// I2C configuration for OLED display
+// ==== Configuración de OLED ====
 #define I2C_PORT i2c1
 #define I2C_SDA 6
 #define I2C_SCL 7
 
-// Global OLED display
-ssd1306_t oled;
+ssd1306_t oled; ///< Instancia global para manejar la pantalla OLED
 
-// ==== Variables Globales ====
+// ==== Variables Globales del Sistema ====
 volatile uint16_t top;
 volatile uint16_t top_lights;
+
 volatile float Temp = 0;
 volatile float lights_value = 0.0f;
 volatile float distance = 0.0f;
@@ -35,6 +51,7 @@ volatile int vibration_count = 0;
 volatile uint8_t flag_alarm = 0;
 volatile uint8_t flag_low_food = 0;
 volatile uint8_t flag_periodic = 0;
+
 bool flag_echo = false;
 bool flag_trigger = false;
 bool flag_vibration = false;
@@ -43,18 +60,44 @@ volatile uint32_t echo_start = 0, echo_end = 0;
 volatile bool trigger_ready = true;
 bool rise_echo = false;
 bool fall_echo = false;
+
 float window[WINDOW_SIZE] = {0};
 int wpos = 0, wcount = 0;
 
-// ==== Prototipos ====
+// ==== Prototipos Locales ====
+
+/**
+ * @brief Actualiza el contenido de la pantalla OLED con los datos actuales.
+ *
+ * @param oled Puntero a estructura de pantalla OLED.
+ * @param Temp Temperatura en grados Celsius.
+ * @param lights_lux Nivel de luz en lux.
+ * @param distance Distancia medida en cm.
+ * @param ir_value Estado del sensor infrarrojo de comida.
+ * @param vibration_value Estado de vibración detectado (1 o 0).
+ */
 void oled_update_display(ssd1306_t *oled, float Temp, float lights_lux, float distance, int ir_value, int vibration_value);
+
+/**
+ * @brief Apaga el buzzer luego de una alarma.
+ * @param id ID del temporizador.
+ * @param user_data Dato de usuario no utilizado.
+ * @return Siempre 0.
+ */
 int64_t apagar_buzzer(alarm_id_t id, void *user_data);
 
-// ==== Main ====
+// ==== Función principal ====
+
+/**
+ * @brief Inicializa el sistema y ejecuta el bucle principal.
+ * 
+ * Se encarga de configurar todos los periféricos y ejecutar el ciclo de lectura de sensores
+ * y control de actuadores en tiempo real, en función de las banderas activadas por interrupciones.
+ */
 int main() {
     stdio_init_all();
 
-    // OLED Init
+    // Inicializar OLED
     i2c_init(I2C_PORT, 400 * 1000);
     gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
     gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
@@ -70,7 +113,7 @@ int main() {
         ssd1306_show(&oled);
     }
 
-    // GPIO Init
+    // Inicialización de pines GPIO
     gpio_init(SERVO1_PIN);     gpio_set_dir(SERVO1_PIN, 1);
     gpio_init(LOW_FOOD_PIN);   gpio_set_dir(LOW_FOOD_PIN, 0);
     gpio_init(LED_PIN);        gpio_set_dir(LED_PIN, 1);
@@ -79,8 +122,9 @@ int main() {
     gpio_set_pulls(LOW_FOOD_PIN, false, true);
 
     gpio_init(BUZZER_PIN);     gpio_set_dir(BUZZER_PIN, 1);
-    gpio_put(BUZZER_PIN, 0); // buzzer off al inicio
+    gpio_put(BUZZER_PIN, 0);  // Desactivado al inicio
 
+    // PWM y sensores
     top = servo_pwm_init(SERVO1_PIN);
     food_control(SERVO1_PIN, FOOD_CLOSE, top);
     gpio_put(LED_PIN, 0);
@@ -89,6 +133,7 @@ int main() {
 
     init_adc(TEMPERATURE_CHL);
 
+    // Interrupciones y temporizadores
     gpio_set_irq_enabled_with_callback(LOW_FOOD_PIN, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &irq_call_back);
     add_alarm_in_ms(LED_TIMEOUT_MS, come_back_irq1, NULL, true);
 
@@ -107,7 +152,7 @@ int main() {
     gpio_pull_down(VIBRATION_PIN);
     gpio_set_irq_enabled_with_callback(VIBRATION_PIN, GPIO_IRQ_EDGE_RISE, true, &irq_call_back);
 
-    // ==== Bucle Principal ====
+    // Bucle Principal
     while (1) {
         if(flag_alarm == 1) {
             food_control(SERVO1_PIN, FOOD_OPEN, top);
@@ -138,20 +183,14 @@ int main() {
             lights_value = lights_control(LIGHT_PIN, top_lights);
             flag_periodic = 0;
 
-            // Conversión de luz a lux (ajusta este factor según tu sensor real)
             float lights_value_lux = lights_value * 0.122f;
 
             printf(" %.2f %.2f %.2f %d %d\n", Temp, lights_value, distance, ir_value, vibration_value);
 
-            if(vibration_count > 0 && vibration_count <= 1) {
-                vibration_value = 1;
-                vibration_count++;
-            } else {
-                vibration_value = 0;
-            }
+            vibration_value = (vibration_count > 0 && vibration_count <= 1) ? 1 : 0;
+            if (vibration_count > 0) vibration_count++;
 
-            // Buzzer si hay vibración
-            if(vibration_value == 1) {
+            if (vibration_value == 1) {
                 gpio_put(BUZZER_PIN, 1);
                 add_alarm_in_ms(500, apagar_buzzer, NULL, true);
             }
@@ -159,12 +198,10 @@ int main() {
             oled_update_display(&oled, Temp, lights_value_lux, distance, ir_value, vibration_value);
         }
 
-        if(flag_trigger) {
+        if(flag_trigger && trigger_ready) {
             flag_trigger = false;
-            if (trigger_ready) {
-                trigger_ready = false;
-                trigger_pulse();
-            }
+            trigger_ready = false;
+            trigger_pulse();
         }
 
         if(flag_echo) {
@@ -175,8 +212,7 @@ int main() {
             } else if (fall_echo) {
                 fall_echo = false;
                 echo_end = time_us_32();
-                uint32_t duracion = echo_end - echo_start;
-                float distancia = duracion / 58.0f;
+                float distancia = (echo_end - echo_start) / 58.0f;
                 if (distancia > 0 && distancia < 400) {
                     distance = moving_average(distancia);
                 }
@@ -194,6 +230,7 @@ int main() {
 }
 
 // ==== Funciones Auxiliares ====
+
 void irq_call_back(uint gpio, uint32_t events) {
     if (gpio == LOW_FOOD_PIN) {
         if (events & GPIO_IRQ_EDGE_RISE) flag_low_food = 1;
