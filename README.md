@@ -20,6 +20,16 @@ Diseñar e implementar un sistema físico embebido que permita el monitoreo en t
 
 ---
 
+## Motivación del Proyecto
+
+Elegimos desarrollar **Piscitec** porque representa una oportunidad ideal para integrar y aplicar los conocimientos adquiridos en este curso de *Electrónica Digital III*, así como en asignaturas complementarias como *Acondicionamiento de Señales*, *Electrónica Analógica I y II*, y *Circuitos I y II*. 
+
+Este proyecto nos permitió trabajar sobre un problema real con impacto ambiental y doméstico, fortaleciendo habilidades prácticas en diseño modular de sistemas embebidos, programación en lenguaje C, uso de interrupciones, manejo de periféricos, control de actuadores y pruebas en tiempo real.
+
+Además, la naturaleza interdisciplinaria del proyecto nos permitió abordar aspectos tanto de hardware como de software, reforzando la importancia de una documentación clara, una estructura de código mantenible y el uso eficiente de los recursos disponibles.
+
+---
+
 ## Características Principales
 
 - Medición en tiempo real:
@@ -32,7 +42,7 @@ Diseñar e implementar un sistema físico embebido que permita el monitoreo en t
 - Control automático:
   - Calentador ON/OFF según histéresis
   - Iluminación por PWM (tira LED 12V)
-  - Dispensador de alimento con servomotor SG90
+  - Dispensador de alimento con servomotor SG80
 
 - Interfaz:
   - Visualización en pantalla OLED 0.96'' (temperatura, alarmas, estado de alimentación)
@@ -76,7 +86,7 @@ El sistema implementa un ciclo de control basado en **polling** e **interrupcion
 - Configuración de timers periódicos para tareas recurrentes.
 - Activación de interrupciones para sensores (ultrasónico, IR, vibración).
 
-### 2. Bucle Principal (`while`)
+### 2. Bucle Principal 
 - Lectura periódica de sensores:
   - Temperatura (LM35)
   - Luz ambiental (LDR)
